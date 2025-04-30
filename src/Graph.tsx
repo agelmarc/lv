@@ -47,7 +47,7 @@ export function Graph({ data }: GraphProps) {
       );
   }, [x, y]);
 
-  const line = d3.line((d, i) => x(i), y);
+  const line = d3.line((_, i) => x(i), y);
 
   return (
     <svg width={width} height={height} ref={svgRef} className="graph">

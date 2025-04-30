@@ -1,9 +1,34 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useControls } from "./common";
+
+function useInterval(callback: () => void, delay: number | null) {
+  const savedCallback = useRef(callback);
+
+  // Remember the latest callback if it changes.
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  // Set up the interval.
+  useEffect(() => {
+    // Don't schedule if no delay is specified.
+    // Note: 0 is a valid value for delay.
+    if (delay === null) {
+      return;
+    }
+
+    const id = setInterval(() => {
+      savedCallback.current();
+    }, delay);
+
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay]);
+}
 
 export function useLV() {
   const {
-    data,
     setData,
     epsilon1,
     epsilon2,
@@ -13,7 +38,7 @@ export function useLV() {
     isPaused,
   } = useControls();
 
-  useEffect(() => {
+  const timestep = useCallback(() => {
     function timestepRK4(prey: number, hunter: number, h: number) {
       function f(prey: number, hunter: number) {
         return [
@@ -41,34 +66,30 @@ export function useLV() {
       return [newPrey, newHunter];
     }
 
-    const timestep = () => {
-      setData((oldData) => {
-        const lastData = oldData.at(-1);
-        if (!lastData) return oldData;
+    setData((oldData) => {
+      const lastData = oldData.at(-1);
+      if (!lastData) return oldData;
 
-        const h = 1; // Define the time step
-        const [newPrey, newHunter] = timestepRK4(
-          lastData.prey,
-          lastData.hunter,
-          h
-        );
+      const h = 1; // Define the time step
+      const [newPrey, newHunter] = timestepRK4(
+        lastData.prey,
+        lastData.hunter,
+        h
+      );
 
-        const time = lastData.time;
+      const time = lastData.time;
 
-        return [
-          ...oldData,
-          {
-            hunter: newHunter,
-            prey: newPrey,
-            time: time + h,
-          },
-        ];
-      });
-    };
+      return [
+        ...oldData,
+        {
+          hunter: newHunter,
+          prey: newPrey,
+          time: time + h,
+        },
+      ];
+    });
+    // fill the dependency array with the variables that are used in the function
+  }, [epsilon1, epsilon2, gamma1, gamma2, setData]);
 
-    if (!isPaused) {
-      const interval = setInterval(timestep, playbackSpeed);
-      return () => clearInterval(interval);
-    }
-  }, [epsilon1, epsilon2, gamma1, gamma2, setData, playbackSpeed, isPaused]);
+  useInterval(timestep, isPaused ? null : playbackSpeed);
 }
